@@ -41,6 +41,7 @@ enum StratumWorkerColumn {
 	IsConnected,
 	LastSeen,
 	PowDifficulty,
+	AvgHashrate,
 	NumAccepted,
 	NumRejected,
 	NumStale,
@@ -54,6 +55,7 @@ impl StratumWorkerColumn {
 			StratumWorkerColumn::IsConnected => "Connected",
 			StratumWorkerColumn::LastSeen => "Last Seen",
 			StratumWorkerColumn::PowDifficulty => "PowDifficulty",
+			StratumWorkerColumn::AvgHashrate => "Avg. Hashrate",
 			StratumWorkerColumn::NumAccepted => "Num Accepted",
 			StratumWorkerColumn::NumRejected => "Num Rejected",
 			StratumWorkerColumn::NumStale => "Num Stale",
@@ -78,6 +80,7 @@ impl TableViewItem<StratumWorkerColumn> for WorkerStats {
 			StratumWorkerColumn::IsConnected => self.is_connected.to_string(),
 			StratumWorkerColumn::LastSeen => datetime.to_string(),
 			StratumWorkerColumn::PowDifficulty => self.pow_difficulty.to_string(),
+			StratumWorkerColumn::AvgHashrate => self.avg_hashrate.to_string(),
 			StratumWorkerColumn::NumAccepted => self.num_accepted.to_string(),
 			StratumWorkerColumn::NumRejected => self.num_rejected.to_string(),
 			StratumWorkerColumn::NumStale => self.num_stale.to_string(),
@@ -94,6 +97,10 @@ impl TableViewItem<StratumWorkerColumn> for WorkerStats {
 			StratumWorkerColumn::IsConnected => self.is_connected.cmp(&other.is_connected),
 			StratumWorkerColumn::LastSeen => self.last_seen.cmp(&other.last_seen),
 			StratumWorkerColumn::PowDifficulty => self.pow_difficulty.cmp(&other.pow_difficulty),
+			StratumWorkerColumn::AvgHashrate => self
+				.avg_hashrate
+				.partial_cmp(&other.avg_hashrate)
+				.unwrap_or(Ordering::Equal),
 			StratumWorkerColumn::NumAccepted => self.num_accepted.cmp(&other.num_accepted),
 			StratumWorkerColumn::NumRejected => self.num_rejected.cmp(&other.num_rejected),
 			StratumWorkerColumn::NumStale => self.num_stale.cmp(&other.num_stale),
@@ -185,6 +192,9 @@ impl TUIMiningView {
 			.column(StratumWorkerColumn::PowDifficulty, "Difficulty", |c| {
 				c.width_percent(10)
 			})
+			.column(StratumWorkerColumn::AvgHashrate, "Avg. Hashrate", |c| {
+				c.width_percent(10)
+			})
 			.column(StratumWorkerColumn::NumAccepted, "Accepted", |c| {
 				c.width_percent(5)
 			})
@@ -195,7 +205,7 @@ impl TUIMiningView {
 				c.width_percent(5)
 			})
 			.column(StratumWorkerColumn::NumBlocksFound, "Blocks Found", |c| {
-				c.width_percent(35)
+				c.width_percent(25)
 			})
 			.default_column(StratumWorkerColumn::IsConnected);
 		table_view.sort_by(StratumWorkerColumn::IsConnected, Ordering::Greater);
@@ -228,6 +238,10 @@ impl TUIMiningView {
 			.child(
 				LinearLayout::new(Orientation::Horizontal)
 					.child(TextView::new("  ").with_name("stratum_network_hashrate")),
+			)
+			.child(
+				LinearLayout::new(Orientation::Horizontal)
+					.child(TextView::new("  ").with_name("stratum_local_hashrate")),
 			);
 
 		let mining_device_view = LinearLayout::new(Orientation::Vertical)
@@ -325,7 +339,6 @@ impl TUIStatusListener for TUIMiningView {
 			},
 		);
 		let stratum_stats = stats.stratum_stats.clone();
-		let worker_stats = stratum_stats.worker_stats;
 		let stratum_enabled = format!("Mining server enabled: {}", stratum_stats.is_enabled);
 		let stratum_is_running = format!("Mining server running: {}", stratum_stats.is_running);
 		let stratum_num_workers = format!("Active workers:        {}", stratum_stats.num_workers);
@@ -346,6 +359,15 @@ impl TUIStatusListener for TUIMiningView {
 			_ => format!(
 				"Network Hashrate C{}:  {:.*}",
 				stratum_stats.edge_bits, 2, stratum_stats.network_hashrate
+			),
+		};
+		let stratum_local_hashrate = match stratum_stats.num_workers {
+			0 => "Local Hashrate:        n/a".to_string(),
+			_ => format!(
+				"Local Hashrate C{}:    {:.*}",
+				stratum_stats.edge_bits,
+				2,
+				stratum_stats.local_hashrate()
 			),
 		};
 
@@ -370,10 +392,13 @@ impl TUIStatusListener for TUIMiningView {
 		c.call_on_name("stratum_network_hashrate", |t: &mut TextView| {
 			t.set_content(stratum_network_hashrate);
 		});
+		c.call_on_name("stratum_local_hashrate", |t: &mut TextView| {
+			t.set_content(stratum_local_hashrate);
+		});
 		let _ = c.call_on_name(
 			TABLE_MINING_STATUS,
 			|t: &mut TableView<WorkerStats, StratumWorkerColumn>| {
-				t.set_items_stable(worker_stats);
+				t.set_items_stable(stratum_stats.worker_stats);
 			},
 		);
 	}

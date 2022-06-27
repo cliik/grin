@@ -361,6 +361,9 @@ impl Handler {
 		params: Option<Value>,
 		worker_id: usize,
 	) -> Result<(Value, bool), RpcError> {
+		// Capture timestamp
+		let now_sec = Utc::now().timestamp();
+
 		// Validate parameters
 		let params: SubmitParams = parse_params(params)?;
 
@@ -494,6 +497,20 @@ impl Handler {
 			);
 		self.workers
 			.update_stats(worker_id, |worker_stats| worker_stats.num_accepted += 1);
+
+		// Update average hashrate with simple IIR filter
+		let filter_alpha = 0.2;
+		self.workers.update_stats(worker_id, |worker_stats| {
+			worker_stats.avg_hashrate = (1.0 - filter_alpha) * worker_stats.avg_hashrate
+				+ 42.0 * filter_alpha * (worker_stats.pow_difficulty as f64)
+					/ ((now_sec - worker_stats.timestamp_last_share) as f64)
+		});
+
+		// Update timestamp AFTER filter has been evaluated
+		self.workers.update_stats(worker_id, |worker_stats| {
+			worker_stats.timestamp_last_share = now_sec
+		});
+
 		let submit_response = if share_is_block {
 			format!("blockfound - {}", b.hash().to_hex())
 		} else {

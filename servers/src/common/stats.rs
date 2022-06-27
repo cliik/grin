@@ -105,6 +105,10 @@ pub struct WorkerStats {
 	pub initial_block_height: u64,
 	/// pow difficulty this worker is using
 	pub pow_difficulty: u64,
+	/// timestamp of last received share
+	pub timestamp_last_share: i64,
+	/// avg hashrate of this worker in graphs per second
+	pub avg_hashrate: f64,
 	/// number of valid shares submitted
 	pub num_accepted: u64,
 	/// number of invalid shares submitted
@@ -138,6 +142,13 @@ pub struct StratumStats {
 	pub minimum_share_difficulty: u64,
 	/// Individual worker status
 	pub worker_stats: Vec<WorkerStats>,
+}
+
+impl StratumStats {
+	/// Return the cumulative hashrate of all connected workers
+	pub fn local_hashrate(&self) -> f64 {
+		self.worker_stats.iter().map(|w| w.avg_hashrate).sum()
+	}
 }
 
 /// Stats on the last WINDOW blocks and the difficulty calculation
@@ -263,6 +274,8 @@ impl Default for WorkerStats {
 			num_rejected: 0,
 			num_stale: 0,
 			num_blocks_found: 0,
+			timestamp_last_share: 0,
+			avg_hashrate: 0.0,
 		}
 	}
 }
